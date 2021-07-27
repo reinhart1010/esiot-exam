@@ -20,10 +20,17 @@ WiFiClient client;
 // For serial communication
 int BAUD_RATE = 9600;
 
+// Creates a new System object since MqttClient::System is abstract;
+class System: public MqttClient::System {
+    unsigned long millis() {
+      return ::millis();
+    }
+};
+
 // Will be filled during setup()
 MqttClient *mqtt = NULL;
 
-String draft[128];
+char draft[128];
 
 // Character position on draft
 int charPos = 0;
@@ -31,7 +38,9 @@ int charPos = 0;
 // Clears message
 void clearDraft(){
   int i = 0;
-  for (i = 0; i < 128; i++) draft[i] = 0;
+  for (i = 0; i < 128; i++){
+    draft[i] = 0;
+  }
 
   charPos = 0;
 }
@@ -39,7 +48,7 @@ void clearDraft(){
 // Send message
 void sendMessage(){
   // Create new message
-  MqttClient::Message nMessage;
+  MqttClient::Message message;
   
   // Configure message (Quality of Service, etc.)
   message.qos = MqttClient::QOS0;
@@ -49,7 +58,7 @@ void sendMessage(){
   message.payloadLen = charPos; // No need for strlen()
 
   // Publish and clear draft
-  mqtt->publish(MQTT_TOPIC_PUB, message);
+  mqtt->publish(DEVICE_ID, message);
   clearDraft();
 
   Serial.println("Successfully sent.");
@@ -59,7 +68,6 @@ void setup(){
   Serial.begin(BAUD_RATE);
 
   // Config WiFi
-  WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED){
     delay(500);
@@ -69,13 +77,8 @@ void setup(){
   Serial.println("WiFi connected");
   Serial.println(WiFi.localIP());
 
-  // Setup MQTT
-  ntp.begin();
-  ntp.update();
-  Serial.println(ntp.getFormattedTime());
-
   // Setup MqttClient
-  MqttClient::System *mqttSystem = new System;
+  MqttClient::System *mqttSystem = System;
   MqttClient::Logger *mqttLogger = new MqttClient::LoggerImpl<HardwareSerial>(Serial);
   MqttClient::Network *mqttNetwork = new MqttClient::NetworkClientImpl<WiFiClient>(client, *mqttSystem);
   // ... to send and receive 128 bits (256 is too large according to NodeMCU)
@@ -100,7 +103,7 @@ void loop() {
   // Check connection status
   if (message->isConnected()){
     // Detect input and paste it to draft
-    while (Serial.available > 0){
+    while (Serial.available() > 0){
       char rx = Serial.read();
       if (rx == '\n'){
         sendMessage();
@@ -121,14 +124,14 @@ void loop() {
     // Set MQTT packet options
     MQTTPacket_connectData options = MQTTPacket_connectData_initializer;
     options.MQTTVersion = 4;
-    options.clientID.cstring = (char*)CLIENT_ID;
+    options.clientID.cstring = (char*)DEVICE_ID;
     options.cleansession = true;
     options.keepAliveInterval = 15; // 15 seconds
 
     // Check for error codes
     MqttClient::Error::type rc = mqtt->connect(options, connectResult);
     if (rc != MqttClient::Error::SUCCESS) {
-      Serial.println("Connection error: %i", rc);
+      Serial.printf("Connection error: %i\n", rc);
       return;
     }
   }
