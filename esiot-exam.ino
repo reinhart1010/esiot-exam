@@ -22,9 +22,10 @@ int BAUD_RATE = 9600;
 
 // Creates a new System object since MqttClient::System is abstract;
 class System: public MqttClient::System {
-    unsigned long millis() {
-      return ::millis();
-    }
+public:
+  unsigned long millis() const {
+    return millis();
+  }
 };
 
 // Will be filled during setup()
@@ -78,7 +79,7 @@ void setup(){
   Serial.println(WiFi.localIP());
 
   // Setup MqttClient
-  MqttClient::System *mqttSystem = System;
+  MqttClient::System *mqttSystem = System();
   MqttClient::Logger *mqttLogger = new MqttClient::LoggerImpl<HardwareSerial>(Serial);
   MqttClient::Network *mqttNetwork = new MqttClient::NetworkClientImpl<WiFiClient>(client, *mqttSystem);
   // ... to send and receive 128 bits (256 is too large according to NodeMCU)
@@ -101,7 +102,7 @@ void setup(){
 
 void loop() {
   // Check connection status
-  if (message->isConnected()){
+  if (mqtt->isConnected()){
     // Detect input and paste it to draft
     while (Serial.available() > 0){
       char rx = Serial.read();
@@ -116,7 +117,7 @@ void loop() {
   } else {
     // Close and make a new TCP connection
     Serial.println("Reconnecting...");
-    client.close(); client.connect(MQTT_HOST, MQTT_PORT);
+    client.connect(MQTT_HOST, MQTT_PORT);
 
     // Start new MQTT connection
     MqttClient::ConnectResult connectResult;
